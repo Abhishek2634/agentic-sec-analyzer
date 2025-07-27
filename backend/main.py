@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any
 import asyncio
+import os # Import the os module
 
 from services.sec_parser import get_latest_filing_html, extract_text_from_html, extract_specific_section, extract_financial_statements
 from agents.summary_agent import generate_summary
@@ -15,20 +16,35 @@ app = FastAPI(
     description="API for analyzing SEC filings using AI agents."
 )
 
+# --- THIS IS THE FIX ---
+# We now explicitly list the frontend URL that is allowed to make requests.
+
+# 1. Get your frontend URL from an environment variable for flexibility.
+#    You will set this variable on your backend hosting platform (Render/Fly.io).
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+origins = [
+    FRONTEND_URL,
+    "http://localhost:3000", # For local development
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins, # Use the specific list of origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"], # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"], # Allow all headers
 )
+
+# --- The rest of your file remains the same ---
 
 reports_cache: Dict[str, Any] = {}
 
-@app.get("/", tags=["Status"])
+@app.get("/", tags=["Status"], methods=["GET", "HEAD"])
 async def read_root():
     """Provides a simple status check and welcome message."""
     return {"status": "ok", "message": "Welcome to the Agentic AI Platform for SEC Filings"}
+
 
 class ReportRequest(BaseModel):
     ticker: str
@@ -40,7 +56,6 @@ class QARequest(BaseModel):
 
 @app.post("/api/generate-report", tags=["Reports"])
 async def create_report(request: ReportRequest):
-    # --- FIX 1: Create a unique cache key using both ticker and filing type ---
     cache_key = f"{request.ticker.upper()}-{request.filing_type}"
     
     if cache_key in reports_cache:
@@ -56,16 +71,13 @@ async def create_report(request: ReportRequest):
         risk_factors = []
         kpis = {}
 
-        # --- FIX 2: Add conditional logic for different filing types ---
         if request.filing_type in ["10-K", "10-Q"]:
             print(f"Running full analysis for {request.filing_type}...")
-            # Extract specific sections needed by agents
             risk_section_text = await asyncio.to_thread(extract_specific_section, document_text, "risk factors")
             financials_text = await asyncio.to_thread(extract_financial_statements, document_text)
             
-            # Run AI agents concurrently
             summary_task = asyncio.to_thread(generate_summary, document_text)
-            risks_task = asyncio.to_thread(extract_risks, risk_section_text) if risk_section_text else asyncio.sleep(0, result=["'Risk Factors' section not found in the document."])
+            risks_task = asyncio.to_thread(extract_risks, risk_section_text) if risk_section_text else asyncio.sleep(0, result=["'Risk Factors' section not found."])
             kpis_task = asyncio.to_thread(extract_kpis, financials_text) if financials_text else asyncio.sleep(0, result={"total_revenue": "N/A", "net_income": "N/A", "eps": "N/A"})
 
             summary, risk_factors, kpis = await asyncio.gather(summary_task, risks_task, kpis_task)
@@ -73,7 +85,6 @@ async def create_report(request: ReportRequest):
 
         elif request.filing_type == "8-K":
             print("Running summary-only analysis for 8-K...")
-            # For 8-K filings, only a summary is relevant.
             summary = await asyncio.to_thread(generate_summary, document_text)
             risk_factors = ["Not applicable for 8-K filings."]
             kpis = {"total_revenue": "N/A", "net_income": "N/A", "eps": "N/A"}
@@ -82,10 +93,7 @@ async def create_report(request: ReportRequest):
         else:
             raise HTTPException(status_code=400, detail=f"Filing type '{request.filing_type}' is not supported.")
 
-        # Create Vector Store for Q&A (applies to all document types)
         print("Creating Vector Store for Q&A...")
-        # Note: We use the ticker as the key for the Q&A vector store, so new filings overwrite the old one.
-        # This is reasonable behavior for a Q&A interface.
         await asyncio.to_thread(create_vector_store, document_text, request.ticker.upper())
 
         report = {
