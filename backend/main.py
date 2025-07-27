@@ -40,7 +40,7 @@ app.add_middleware(
 
 reports_cache: Dict[str, Any] = {}
 
-@app.get("/", tags=["Status"], methods=["GET", "HEAD"])
+@app.api_route("/", tags=["Status"], methods=["GET", "HEAD"])
 async def read_root():
     """Provides a simple status check and welcome message."""
     return {"status": "ok", "message": "Welcome to the Agentic AI Platform for SEC Filings"}

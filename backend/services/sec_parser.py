@@ -1,9 +1,11 @@
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 from sec_api import QueryApi, RenderApi
 from core.config import SEC_API_KEY
 import re
+import warnings
 
-# ... get_latest_filing_html and extract_text_from_html functions remain the same ...
+# Suppress the specific warning from BeautifulSoup that can clutter logs
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 def get_latest_filing_html(ticker: str, filing_type: str = "10-K"):
     """
@@ -15,15 +17,19 @@ def get_latest_filing_html(ticker: str, filing_type: str = "10-K"):
         queryApi = QueryApi(api_key=SEC_API_KEY)
         query = {
             "query": { "query_string": { "query": f"ticker:{ticker} AND formType:\"{filing_type}\"" }},
-            "from": "0", "size": "1", "sort": [{ "filedAt": { "order": "desc" } }]
+            "from": "0",
+            "size": "1",
+            "sort": [{ "filedAt": { "order": "desc" } }]
         }
         response = queryApi.get_filings(query)
         filings = response.get('filings')
         if not filings:
             raise ValueError(f"No filings of type {filing_type} found for ticker {ticker}.")
+        
         filing_url = filings[0].get('linkToFilingDetails')
         if not filing_url:
             raise ValueError("Filing found, but it's missing a URL to its details.")
+        
         print(f"Found filing URL: {filing_url}")
         renderApi = RenderApi(api_key=SEC_API_KEY)
         filing_html = renderApi.get_filing(url=filing_url)
@@ -42,14 +48,16 @@ def extract_text_from_html(html_content: str):
 def extract_specific_section(text: str, section_title: str) -> str | None:
     """
     Extracts a specific section from the document text, e.g., 'Risk Factors'.
-    This implementation is now more robust to handle variations in formatting.
     """
+    # This pattern is specifically for the "Risk Factors" section (Item 1A)
     start_pattern = re.compile(
         r"(?:ITEM|Item)\s+(?:1A|lA)\s*\.?\s*Risk\s*Factors", re.IGNORECASE
     )
     start_match = start_pattern.search(text)
     if not start_match:
         return None
+    
+    # The end is the start of the next major item
     end_pattern = re.compile(
         r"(?:ITEM|Item)\s+(?:1B|lB|2|3)\s*\.?", re.IGNORECASE
     )
@@ -58,35 +66,42 @@ def extract_specific_section(text: str, section_title: str) -> str | None:
     end_index = end_match.start() if end_match else start_index + 80000
     return text[start_index:end_index]
 
-# --- NEW FUNCTION ADDED HERE ---
 def extract_financial_statements(text: str) -> str | None:
     """
-    Extracts the main financial statements section, typically starting with
-    'CONSOLIDATED STATEMENTS OF OPERATIONS'.
+    Extracts the consolidated financial statements from the document by locating Item 8.
     """
-    # Pattern to find the start of the main income statement.
-    start_pattern = re.compile(
-        r"CONSOLIDATED STATEMENTS OF OPERATIONS", re.IGNORECASE
-    )
-    start_match = start_pattern.search(text)
-    
-    # Fallback for different naming conventions
-    if not start_match:
-        start_pattern = re.compile(r"STATEMENTS OF INCOME", re.IGNORECASE)
-        start_match = start_pattern.search(text)
-
-    if not start_match:
-        return None
-
-    # Pattern to find the end. This is usually the start of the next statement.
-    end_pattern = re.compile(
-        r"(CONSOLIDATED STATEMENTS OF COMPREHENSIVE INCOME|CONSOLIDATED BALANCE SHEETS|CONSOLIDATED STATEMENTS OF CASH FLOWS)", 
+    # Pattern for the start of the main financial statements section (Item 8)
+    item_8_start_pattern = re.compile(
+        r"(?:ITEM|Item)\s+8\s*\.\s*Financial\s+Statements\s+and\s+Supplementary\s+Data",
         re.IGNORECASE
     )
-    end_match = end_pattern.search(text, pos=start_match.end())
+    
+    # Pattern for the start of the notes, which usually follows the main statements
+    notes_start_pattern = re.compile(
+        r"Notes\s+to\s+Consolidated\s+Financial\s+Statements", re.IGNORECASE
+    )
 
-    start_index = start_match.start()
-    # Take a large chunk if end is not found, as these tables can be long.
-    end_index = end_match.start() if end_match else start_index + 30000 
+    item_8_match = item_8_start_pattern.search(text)
+    
+    if not item_8_match:
+        # Fallback if Item 8 is not found: look for the statement tables directly
+        print("Warning: 'Item 8' not found. Falling back to direct statement search.")
+        statement_start_pattern = re.compile(r"CONSOLIDATED\s+STATEMENTS\s+OF\s+OPERATIONS", re.IGNORECASE)
+        start_match = statement_start_pattern.search(text)
+        if not start_match:
+            print("Error: Could not find financial statements.")
+            return None
+        
+        start_index = start_match.start()
+        notes_match = notes_start_pattern.search(text, pos=start_index)
+        end_index = notes_match.start() if notes_match else start_index + 40000
+        return text[start_index:end_index]
 
+    # If Item 8 is found, search for the statements *within* it
+    start_index = item_8_match.start()
+    notes_match = notes_start_pattern.search(text, pos=start_index)
+    
+    # The end of the statements is usually the beginning of the notes.
+    end_index = notes_match.start() if notes_match else start_index + 60000
+    
     return text[start_index:end_index]
