@@ -3,7 +3,9 @@
 torch
 torchvision
 torchaudio
+# ------------------------------------
 
+# --- Application Dependencies ---
 fastapi[all]
 uvicorn
 python-dotenv
@@ -19,4 +21,3 @@ sentence-transformers>=2.2.0
 chromadb
 pydantic
 requests
-ast
