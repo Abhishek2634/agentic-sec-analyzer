@@ -11,7 +11,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Updated handler to accept filingType
   const handleGenerateReport = async (ticker: string, filingType: string) => {
     setIsLoading(true);
     setError(null);
@@ -23,7 +22,6 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        // Pass both ticker and filingType in the request body
         body: JSON.stringify({ ticker: ticker, filing_type: filingType }),
       });
 
@@ -34,8 +32,14 @@ export default function Home() {
 
       const data: IReportData = await response.json();
       setReport(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      // --- THIS IS THE FIX ---
+      // We check if the caught item is an instance of Error before accessing .message
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred.');
+      }
     } finally {
       setIsLoading(false);
     }

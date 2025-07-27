@@ -38,6 +38,9 @@ export default function QaInterface({ ticker }: Props) {
       const aiMessage: IMessage = { sender: "ai", text: data.answer };
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
+      // --- THIS IS THE FIX ---
+      // We now log the error to the console, which resolves the "unused variable" warning.
+      console.error("Q&A Error:", error);
       const errorMessage: IMessage = {
         sender: "ai",
         text: "Sorry, I encountered an error.",
@@ -50,7 +53,6 @@ export default function QaInterface({ ticker }: Props) {
 
   return (
     <div className="border rounded-lg p-4 bg-gray-50">
-      {/* Message Display Area */}
       <div className="h-64 overflow-y-auto mb-4 p-2 space-y-4">
         {messages.length === 0 && (
           <p className="text-center text-gray-500">
@@ -85,7 +87,6 @@ export default function QaInterface({ ticker }: Props) {
         )}
       </div>
 
-      {/* Input Form */}
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"
