@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+langchain
+langchain-core
+langchain-groq
+langchain-community
+beautifulsoup4
+lxml
+chromadb
+sentence-transformers
+pypdf
+sec-api
+openai
+langchain-openai
