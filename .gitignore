@@ -1,0 +1,14 @@
+# Python / Backend
+__pycache__/
+*.pyc
+.env
+app/ # Or your conda environment name
+
+# Node / Frontend
+node_modules/
+.next/
+out/
+.DS_Store
+
+# IDE / OS specific
+.vscode/
