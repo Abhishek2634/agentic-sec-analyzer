@@ -3,9 +3,7 @@ from sec_api import QueryApi, RenderApi
 from core.config import SEC_API_KEY
 import re
 import warnings
-import traceback # Import the traceback module
-
-# Suppress the specific warning from BeautifulSoup
+import traceback 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 def get_latest_filing_html(ticker: str, filing_type: str = "10-K"):
@@ -38,7 +36,6 @@ def get_latest_filing_html(ticker: str, filing_type: str = "10-K"):
         print("Successfully fetched filing HTML.")
         return filing_html
     except Exception as e:
-        # We added this detailed logging to find the real error
         error_trace = traceback.format_exc()
         print("--- [CRITICAL ERROR] An exception occurred in get_latest_filing_html ---")
         print(f"Error Type: {type(e).__name__}")
@@ -46,7 +43,7 @@ def get_latest_filing_html(ticker: str, filing_type: str = "10-K"):
         print("--- FULL TRACEBACK ---")
         print(error_trace)
         print("--------------------------------------------------------------------")
-        raise e # Re-raise the original exception
+        raise e 
 
 def extract_text_from_html(html_content: str):
     """Extracts plain text from filing HTML."""

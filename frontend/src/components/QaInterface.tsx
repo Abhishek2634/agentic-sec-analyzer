@@ -38,8 +38,7 @@ export default function QaInterface({ ticker }: Props) {
       const aiMessage: IMessage = { sender: "ai", text: data.answer };
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
-      // --- THIS IS THE FIX ---
-      // We now log the error to the console, which resolves the "unused variable" warning.
+
       console.error("Q&A Error:", error);
       const errorMessage: IMessage = {
         sender: "ai",

@@ -4,14 +4,11 @@ from langchain.chains import RetrievalQA
 from langchain_openai import OpenAI
 from core.config import OPENAI_API_KEY
 
-# In-memory dictionary to hold vector stores for different tickers
 vector_stores: dict = {}
 
-# This is a helper function to ensure the heavy model is only loaded when needed.
 def _get_embedding_model():
     """Dynamically imports and returns the sentence transformer embedding model."""
     from langchain_community.embeddings import SentenceTransformerEmbeddings
-    # The model is now loaded here, inside the function call, not at startup.
     return SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
 def create_vector_store(document_text: str, ticker: str):
@@ -24,7 +21,6 @@ def create_vector_store(document_text: str, ticker: str):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     texts = text_splitter.split_text(document_text)
     
-    # Load the model only when we are ready to create the vector store.
     embedding_model = _get_embedding_model()
     
     vector_store = Chroma.from_texts(texts, embedding_model)

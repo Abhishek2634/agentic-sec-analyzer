@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from core.config import OPENAI_API_KEY
-import ast # Import the Abstract Syntax Tree module for safe parsing
+import ast 
 
 def extract_risks(document_text: str):
     """Extracts the top 5-7 risk factors using an OpenAI model."""
@@ -38,12 +38,10 @@ def extract_risks(document_text: str):
     content = content.strip()
     
     try:
-        # Use ast.literal_eval for safely parsing the string as a Python list
         risks = ast.literal_eval(content)
         if isinstance(risks, list):
             return risks
     except (ValueError, SyntaxError):
-        # Fallback for parsing bullet points if literal_eval fails
         return [line.strip('-* ').strip() for line in content.split('\n') if line.strip() and len(line) > 10]
 
     return ["Could not parse risk factors from the provided section."]

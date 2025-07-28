@@ -19,7 +19,6 @@ def extract_kpis(document_text: str):
     prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", human_prompt)])
     chain = prompt | chat
     
-    # The text is now pre-filtered, so no need for large slicing
     response = chain.invoke({"text": document_text})
     
     try:

@@ -15,8 +15,7 @@ def generate_summary(document_text: str):
     prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", human_prompt)])
     chain = prompt | chat
     
-    # Re-introduce truncation to stay within rate limits for a summary.
-    # 80,000 characters is a large chunk for a high-level summary.
+    # truncate chars to avoid exceeding token limits
     response = chain.invoke({"text": document_text[:80000]})
     
     return response.content

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 import asyncio
 import os
-import traceback # Import the traceback module for detailed error logging
+import traceback 
 
 from services.sec_parser import get_latest_filing_html, extract_text_from_html, extract_specific_section, extract_financial_statements
 from agents.summary_agent import generate_summary
@@ -84,8 +84,7 @@ async def create_report(request: ReportRequest):
         reports_cache[cache_key] = report
         return report
     except Exception as e:
-        # --- THIS IS THE CRITICAL CHANGE ---
-        # We will now print the full error traceback to the logs for detailed debugging.
+
         error_trace = traceback.format_exc()
         print("--- [CRITICAL ERROR] An exception occurred during report generation. ---")
         print(f"Error Type: {type(e).__name__}")
