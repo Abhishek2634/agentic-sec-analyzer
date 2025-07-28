@@ -1,60 +1,49 @@
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import SentenceTransformerEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.schema.runnable import RunnablePassthrough
-from langchain.schema.output_parser import StrOutputParser
-from langchain_openai import ChatOpenAI # Changed from langchain_groq
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains import RetrievalQA
+from langchain_openai import OpenAI
+from core.config import OPENAI_API_KEY
 
-from core.config import OPENAI_API_KEY # Changed from GROQ_API_KEY
+# In-memory dictionary to hold vector stores for different tickers
+vector_stores: dict = {}
 
-# Global cache for vector stores to avoid re-creating them
-vector_store_cache = {}
+# This is a helper function to ensure the heavy model is only loaded when needed.
+def _get_embedding_model():
+    """Dynamically imports and returns the sentence transformer embedding model."""
+    from langchain_community.embeddings import SentenceTransformerEmbeddings
+    # The model is now loaded here, inside the function call, not at startup.
+    return SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
-def create_vector_store(doc_text: str, ticker: str):
-    """Creates a ChromaDB vector store from document text."""
-    if ticker in vector_store_cache:
-        return vector_store_cache[ticker]
-
+def create_vector_store(document_text: str, ticker: str):
+    """Creates and caches a vector store for a given document."""
+    if not document_text:
+        return
+        
     print(f"Creating vector store for {ticker}...")
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    splits = text_splitter.split_text(doc_text)
-
-    # Use a local, open-source embedding model
-    embedding_model = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
     
-    vector_store = Chroma.from_texts(texts=splits, embedding=embedding_model)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    texts = text_splitter.split_text(document_text)
     
-    vector_store_cache[ticker] = vector_store
-    print(f"Vector store for {ticker} created and cached.")
-    return vector_store
+    # Load the model only when we are ready to create the vector store.
+    embedding_model = _get_embedding_model()
+    
+    vector_store = Chroma.from_texts(texts, embedding_model)
+    vector_stores[ticker] = vector_store
+    print(f"Vector store for {ticker} created successfully.")
 
 def get_qa_answer(query: str, ticker: str):
-    """Answers a question based on the cached vector store for a ticker."""
-    if ticker not in vector_store_cache:
-        raise ValueError(f"Report for {ticker} has not been generated yet. Please generate the report first.")
-
-    vector_store = vector_store_cache[ticker]
-    retriever = vector_store.as_retriever()
+    """Answers a question using the cached vector store for a ticker."""
+    if ticker not in vector_stores:
+        raise ValueError(f"No document has been processed for {ticker} yet. Please generate a report first.")
     
-    # Changed to ChatOpenAI and a suitable model like gpt-4o
-    llm = ChatOpenAI(temperature=0, openai_api_key=OPENAI_API_KEY, model_name="gpt-4o")
-
-    template = """
-    You are a helpful assistant for answering questions about SEC filings.
-    Use only the following context to answer the question. If you don't know the answer, just say that you don't know.
-    Context: {context}
-    Question: {question}
-    Answer:
-    """
-    prompt = ChatPromptTemplate.from_template(template)
-
-    chain = (
-        {"context": retriever, "question": RunnablePassthrough()}
-        | prompt
-        | llm
-        | StrOutputParser()
+    vector_store = vector_stores[ticker]
+    llm = OpenAI(temperature=0, openai_api_key=OPENAI_API_KEY)
+    
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",
+        retriever=vector_store.as_retriever()
     )
     
-    answer = chain.invoke(query)
-    return answer
+    response = qa_chain.invoke(query)
+    return response.get('result', "Could not find an answer.")
